@@ -556,9 +556,9 @@ def get_cuisine_types(df=None):
     """获取所有菜系类别，按照数据列D1到P1的顺序"""
     if df is not None:
         # 获取D到P列的列名（索引3到15）
-        cuisine_columns = list(df.iloc[:, 3:16].columns)
+        cuisine_columns = df.columns[3:16].tolist()
         return ['全部'] + cuisine_columns
-    return ['全部']  # 如果没有数据，只返回'全部'选项
+    return ['全部']  
 
 def get_restaurant_levels():
     """获取餐厅档次类别"""
@@ -589,7 +589,7 @@ def main():
                 # 左侧列：继续添加控件
                 with col_filters:
                     # 选择菜系和餐厅档次
-                    cuisine_types = get_cuisine_types(df)  # 传入df以获取实际的列名
+                    cuisine_types = get_cuisine_types(df)  
                     restaurant_levels = get_restaurant_levels()
                     
                     selected_cuisine = st.selectbox('选择菜系', cuisine_types, index=0)
@@ -601,8 +601,10 @@ def main():
                 # 右侧列：数据预览
                 with col_preview:
                     if selected_cuisine != '全部':
-                        # 使用选定的列名进行过滤
-                        filtered_df = filtered_df[filtered_df[selected_cuisine] > 0]
+                        # 根据所选菜系过滤数据
+                        filtered_df = filtered_df[filtered_df[selected_cuisine] == 1]
+                        # 更新B列为所选菜系（使用列名而不是索引）
+                        filtered_df[df.columns[1]] = selected_cuisine
                     if selected_level != '全部':
                         filtered_df = filtered_df[filtered_df.iloc[:, 2] == selected_level]
                     
