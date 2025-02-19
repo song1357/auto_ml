@@ -312,12 +312,13 @@ def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selec
         title_paragraph.alignment = 1
         title_paragraph.runs[0].bold = True
 
-        sku_table = doc.add_table(rows=k+1, cols=len(selected_features)+1)
+        sku_table = doc.add_table(rows=k+1, cols=len(selected_features)+2)  # 增加一列用于店数占比
         sku_table.style = 'Table Grid'
         header_cells = sku_table.rows[0].cells
         header_cells[0].text = '聚类'
+        header_cells[1].text = '店数占比'  # 新增店数占比列
         for idx, col in enumerate(selected_features):
-            header_cells[idx+1].text = col
+            header_cells[idx+2].text = col
 
         for cell in header_cells:
             cell.paragraphs[0].runs[0].bold = True
@@ -327,21 +328,26 @@ def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selec
             tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
             tcPr.append(tcVAlign)
 
+        total_stores = len(df_analysis)  # 总店数
         for i in range(k):
             row_cells = sku_table.rows[i+1].cells
             row_cells[0].text = f'聚类{i}'
             cluster_data = df_analysis[df_analysis['cluster'] == i]
-            total_stores = len(cluster_data)
+            cluster_stores = len(cluster_data)
+            # 添加店数占比
+            store_percentage = (cluster_stores / total_stores) * 100
+            row_cells[1].text = f'{int(round(store_percentage))}%'
+            
             for col_idx, col in enumerate(selected_features):
                 # 确保数据是数值型
                 numeric_data = pd.to_numeric(cluster_data[col], errors='coerce')
                 stores_using_sku = (numeric_data > 0).sum()
                 if stores_using_sku > 0:
-                    percentage = (stores_using_sku / total_stores) * 100
-                    row_cells[col_idx+1].text = f'{int(round(percentage))}%'
+                    percentage = (stores_using_sku / cluster_stores) * 100
+                    row_cells[col_idx+2].text = f'{int(round(percentage))}%'
                 else:
-                    row_cells[col_idx+1].text = '/'
-
+                    row_cells[col_idx+2].text = '/'
+        
         for row in sku_table.rows:
             for cell in row.cells:
                 cell.paragraphs[0].alignment = 1
