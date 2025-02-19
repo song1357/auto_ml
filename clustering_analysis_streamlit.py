@@ -145,6 +145,15 @@ def create_evaluation_plots(K, costs, silhouette_scores, optimal_k, current_k):
     return fig
 
 def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selected_features, k_range, model_name, output_format='docx', selected_cuisines='全部', selected_level='全部'):
+    # 保存原始数据用于聚类分析
+    df_for_clustering = df.copy()
+    
+    # 根据选择的餐厅档次筛选数据用于聚类
+    if selected_level != '全部':
+        df_for_clustering = df[df.iloc[:, level_col_idx] == selected_level].copy()
+        if len(df_for_clustering) == 0:
+            raise ValueError(f"筛选后没有符合条件的数据：{selected_level}")
+    
     doc = Document()
     doc.add_heading('调味品使用聚类分析报告', 0)
     doc.add_heading('1. 基本信息', level=1)
@@ -188,7 +197,7 @@ def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selec
             tcPr.append(tcVAlign)
 
     # 预处理数据，只保留数值型特征
-    X = preprocess_data(df, selected_features)
+    X = preprocess_data(df_for_clustering, selected_features)
     
     doc.add_heading('2. 聚类数量评估', level=1)
     K, silhouette_scores, costs, optimal_k = find_optimal_k(X, max(k_range), model_name)
@@ -259,7 +268,7 @@ def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selec
             model = KMeans(n_clusters=k, random_state=42)
         
         clusters = model.fit_predict(X)
-        df_analysis = df.copy()
+        df_analysis = df_for_clustering.copy()
         df_analysis['cluster'] = clusters
 
         # 计算每个簇的特征平均值（只使用数值型列）
@@ -362,37 +371,78 @@ def create_clustering_report(df, filename, cuisine_col_idx, level_col_idx, selec
                 tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
                 tcPr.append(tcVAlign)
 
-            cluster_data = df_analysis[df_analysis['cluster'] == i]
+            cluster_indices = df_analysis[df_analysis['cluster'] == i].index
+            cluster_data = df.iloc[cluster_indices]
             
             # 获取菜系和餐厅档次列
-            cuisine_type = cluster_data[cuisine_col]
-            restaurant_level = cluster_data[level_col]
+            cuisine_col = cluster_data.columns[cuisine_col_idx]
+            level_col = cluster_data.columns[level_col_idx]
             
             # 1. 菜系分布
-            cuisine_dist = cuisine_type.value_counts()
+            cuisine_dist = cluster_data[cuisine_col].value_counts()
             top_cuisines = cuisine_dist.head(3)
             
             # 2. 餐厅档次分布
-            level_dist = restaurant_level.value_counts()
+            level_dist = cluster_data[level_col].value_counts()
             
             # 添加数据到表格
             for dist_type, dist_data in [('菜系', top_cuisines), ('餐厅档次', level_dist)]:
-                for name, value in dist_data.items():
-                    row = distribution_table.add_row()
-                    cells = row.cells
-                    cells[0].text = dist_type
-                    cells[1].text = str(name)
-                    
-                    total = len(cluster_data)
-                    percentage = (value / total) * 100
-                    cells[2].text = f'{int(round(percentage))}%'
-                    
-                    for cell in cells:
-                        cell.paragraphs[0].alignment = 1
-                        tc = cell._tc
-                        tcPr = tc.get_or_add_tcPr()
-                        tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
-                        tcPr.append(tcVAlign)
+                if dist_type == '餐厅档次':
+                    # 如果选择了特定档次，只显示该档次的数据
+                    if selected_level != '全部':
+                        if selected_level in level_dist:
+                            row = distribution_table.add_row()
+                            cells = row.cells
+                            cells[0].text = dist_type
+                            cells[1].text = selected_level
+                            # 使用当前聚类的总数作为计算百分比的基数
+                            total = len(cluster_data)  # 使用所有档次的总数
+                            percentage = (level_dist[selected_level] / total) * 100
+                            cells[2].text = f'{int(round(percentage))}%'
+                            
+                            # 设置单元格格式
+                            for cell in cells:
+                                cell.paragraphs[0].alignment = 1
+                                tc = cell._tc
+                                tcPr = tc.get_or_add_tcPr()
+                                tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
+                                tcPr.append(tcVAlign)
+                    else:
+                        # 如果没有选择特定档次，显示所有档次数据
+                        for name, value in dist_data.items():
+                            row = distribution_table.add_row()
+                            cells = row.cells
+                            cells[0].text = dist_type
+                            cells[1].text = str(name)
+                            total = len(cluster_data)
+                            percentage = (value / total) * 100
+                            cells[2].text = f'{int(round(percentage))}%'
+                            
+                            # 设置单元格格式
+                            for cell in cells:
+                                cell.paragraphs[0].alignment = 1
+                                tc = cell._tc
+                                tcPr = tc.get_or_add_tcPr()
+                                tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
+                                tcPr.append(tcVAlign)
+                else:
+                    # 菜系分布的处理保持不变
+                    for name, value in dist_data.items():
+                        row = distribution_table.add_row()
+                        cells = row.cells
+                        cells[0].text = dist_type
+                        cells[1].text = str(name)
+                        total = len(cluster_data)
+                        percentage = (value / total) * 100
+                        cells[2].text = f'{int(round(percentage))}%'
+                        
+                        # 设置单元格格式
+                        for cell in cells:
+                            cell.paragraphs[0].alignment = 1
+                            tc = cell._tc
+                            tcPr = tc.get_or_add_tcPr()
+                            tcVAlign = parse_xml(r'<w:vAlign xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:val="center"/>')
+                            tcPr.append(tcVAlign)
             
             doc.add_paragraph('')
 
@@ -603,7 +653,7 @@ def main():
                     if st.button('开始聚类分析'):
                         with st.spinner('正在进行聚类分析...'):
                             # 预处理数据
-                            X = preprocess_data(all_data[selected_sheet], st.session_state[f'selected_seasonings_{selected_sheet}'])
+                            X = preprocess_data(all_data[st.session_state['selected_sheet']], st.session_state[f'selected_seasonings_{selected_sheet}'])
                             
                             # 聚类分析
                             K, silhouette_scores, costs, optimal_k = find_optimal_k(X, 10, model_name)
@@ -666,7 +716,11 @@ def main():
                         if st.button('生成分析报告'):
                             try:
                                 with st.spinner('正在生成报告...'):
-                                    encoded_report, actual_format = create_clustering_report(
+                                    # 获取当前选择的餐厅档次
+                                    current_level = st.session_state.get('selected_level', '全部')
+                                    
+                                    # 调用create_clustering_report时传递选择的档次
+                                    report_content, file_extension = create_clustering_report(
                                         all_data[st.session_state['selected_sheet']], 
                                         f"{uploaded_file.name}_{st.session_state['selected_sheet']}",
                                         1, 
@@ -676,15 +730,15 @@ def main():
                                         st.session_state['clustering_results']['model_name'],
                                         output_format,
                                         st.session_state[f'selected_cuisines_{st.session_state["selected_sheet"]}'], 
-                                        st.session_state['selected_level']
+                                        current_level  # 传递选择的档次
                                     )
-                                    extension = '.pdf' if actual_format == 'pdf' else '.docx'
+                                    extension = '.pdf' if file_extension == 'pdf' else '.docx'
                                     filename = f'聚类分析报告_{datetime.now().strftime("%Y%m%d_%H%M%S")}{extension}'
                                     st.download_button(
                                         label="下载报告",
-                                        data=encoded_report,
+                                        data=report_content,
                                         file_name=filename,
-                                        mime=('application/pdf' if actual_format == 'pdf' 
+                                        mime=('application/pdf' if file_extension == 'pdf' 
                                              else 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
                                     )
                                     st.success('报告生成成功！')
