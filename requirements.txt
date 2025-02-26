@@ -7,4 +7,4 @@ python-docx>=0.8.0
 seaborn>=0.12.0
 docx2pdf>=0.1.7
 kmodes>=0.11.0
-
+pypandoc>=1.7
