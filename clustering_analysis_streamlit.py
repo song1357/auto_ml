@@ -14,13 +14,10 @@ from sklearn.preprocessing import StandardScaler
 from kmodes.kmodes import KModes
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics import silhouette_score
-import time
 import tempfile
 import os
-import base64
 from docx.oxml.ns import qn
 from functools import lru_cache
-import pythoncom
 from docx.oxml import parse_xml
 from docx.enum.section import WD_ORIENT
 from docx.shared import Mm
